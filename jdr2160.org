@@ -98,6 +98,9 @@ file!!!
 
 * Global modes and general editor tweaks
 
+These largely fall into the 'sane defaults' category of configuration
+tweaks:
+
 #+BEGIN_SRC emacs-lisp
   (put 'downcase-region 'disabled nil)
   (put 'upcase-region 'disabled nil)
@@ -119,6 +122,37 @@ file!!!
   (diminish 'display-line-numbers-mode)
 
   (show-paren-mode t)
+#+END_SRC
+
+~smartparens~ and ~paredit~ make working with parentheses more
+convenient and visually appealing.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package paredit
+    :ensure t)
+  (use-package smartparens
+    :ensure t
+    :init
+    (smartparens-global-mode 1)
+    (show-smartparens-global-mode +1)
+    :bind (("M-n" . sp-next-sexp)
+	   ("M-p" . sp-previous-sexp)
+	   ("M-f" . sp-forward-sexp)
+	   ("M-b" . sp-backward-sexp))
+    :config
+    (use-package smartparens-config)
+    (setq smartparens-strict-mode t
+	  sp-autoinsert-if-followed-by-word t
+	  sp-autoskip-closing-pair 'always
+	  sp-base-key-bindings 'paredit
+	  sp-hybrid-kill-entire-symbol nil)
+    (sp-use-paredit-bindings)
+    (sp-with-modes '(markdown-mode gfm-mode rst-mode)
+		   (sp-local-pair "*" "*" :bind "C-*")
+		   (sp-local-tag "2" "**" "**")
+		   (sp-local-tag "s" "```scheme" "```")
+		   (sp-local-tag "<" "<_>" "</_>" :transform 'sp-match-sgml-tags))
+    (sp-local-pair 'emacs-lisp-mode "`" nil :when '(sp-in-string-p)))
 #+END_SRC
 
 * Configure backups
@@ -178,6 +212,35 @@ instead.
     :ensure t
     :after helm-mode
     :bind ("H-w" . helm-swoop))
+#+END_SRC
+
+** Multiple cursors
+
+Multiple cursors were a feature made popular by Sublime Text. The
+Emacs package ~multiple-cursors~ brings a lot of this functionality to
+our favorite programming environment.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package multiple-cursors
+    :ensure t
+    :config
+    (global-set-key (kbd "C-S-c C-S-c") 'mc/edit-lines)
+    (global-set-key (kbd "C->") 'mc/mark-next-like-this)
+    (global-set-key (kbd "C-<") 'mc/mark-previous-like-this)
+    (global-set-key (kbd "C-c C-<") 'mc/mark-all-like-this))
+#+END_SRC
+
+** Incremental search
+
+Incremental search doesn't natively work with ~multiple-cursors~. We
+can use ~phi-search~ to fix this.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package phi-search
+    :ensure t
+    :config
+    (global-set-key (kbd "C-s") 'phi-search)
+    (global-set-key (kbd "C-r") 'phi-search-backward))
 #+END_SRC
 
 * Language-specific configuration
