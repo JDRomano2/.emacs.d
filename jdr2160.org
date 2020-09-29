@@ -1,0 +1,313 @@
+#+TITLE: Joe Romano's Emacs Configuration
+#+OPTIONS: toc:4 h:4
+#+STARTUP: showeverything
+#+PROPERTY: header-args:emacs-lisp
+
+* Contents of ~init.el~
+
+If Emacs were a truly [[http://www.literateprogramming.com/knuthweb.pdf][literate]] programming environment, we'd be able
+to keep all of our configuration in a single file. Unfortunately, it's
+not, so we go with the next best thing: Keeping most of our config in
+an ~org-mode~ file (i.e., this file) and using ~org-babel-load-file~
+to convert all of the emacs-lisp code blocks to a file that will be
+used in our config. ~init.el~ just contains the bare minimum
+configuration needed to instruct ~org-mode~ how to do this
+correctly. Since we rely on some external packages in the process, as
+well as a bleeding-edge version of ~org-mode~ (newer than what's in
+the main package repository), there is a little bit of package
+management here, as well.
+
+First, we load ~package.el~ (Emacs' built-in package manager, included
+in all versions >= 24) and add third-party package repositories as needed.
+
+#+BEGIN_SRC emacs-lisp :tangle no
+  (require 'package)
+  (unless (assoc-default "melpa" package-archives)
+    (add-to-list 'package-archives '("melpa"
+				     . "https://melpa.org/packages/")
+		 t))
+  (unless (assoc-default "org" package-archives)
+    (add-to-list 'package-archives '("org"
+				     . "https://orgmode.org/elpa/")
+		 t))
+#+END_SRC
+
+Now, we tell Emacs to load all of the packages we've already installed.
+
+#+BEGIN_SRC emacs-lisp :tangle no
+  (package-initialize)
+#+END_SRC
+
+One of the most important tools we use in our configuration is
+jwiegley's ~use-package~ package, which gives a super-concise syntax
+for:
+- Installing packages, if needed
+- Loading packages
+- Running config lines relevant to the package both at Emacs startup
+  and when the package is 'activated' for the first time
+- Setting up keybindings associated with packages and activating them
+  when the package is in use
+- Diminishing any resulting major or minor modes so they don't clutter
+  up the mode line
+- A few other things (check out [[https://github.com/jwiegley/use-package][the README]] for more info)
+The following code block checks to see if we have ~'use-package~
+installed, and installs it if we do not. We also need to require
+~'diminish~ and ~'bind-key~ to provide support for the corresponding
+features in ~use-package~.
+
+#+BEGIN_SRC emacs-lisp :tangle no
+  (unless (or (package-installed-p 'use-package)
+	      (package-installed-p 'diminish))
+    (package-refresh-contents)
+    (package-install 'use-package)
+    (package-install 'diminish))
+
+  (eval-when-compile
+    (require 'use-package))
+  (require 'diminish)
+  (require 'bind-key)
+#+END_SRC
+
+Finally, we instruct ~org-mode~ to copy all ~emacs-lisp~ code blocks
+in this file to a different file (named ~jdr2160.org~) and then load
+that file's contents.
+
+#+BEGIN_SRC emacs-lisp :tangle no
+  (org-babel-load-file (concat user-emacs-directory "jdr2160.org"))
+#+END_SRC
+
+We're now ready to be literate!
+
+* Installing and pre-configuring Emacs
+
+TODO: Describe the preferred installation methods for Emacs on various
+systems.
+
+* Personal Information
+
+I don't think I've run into a situation where I actually need to use
+these variables, but I feel like it's good form.
+
+PLEASE change these variables if you are going to reuse this config
+file!!!
+
+#+BEGIN_SRC emacs-lisp
+  (setq user-full-name "Joseph D. Romano"
+	user-mail-address "jdromano2@gmail.com")
+#+END_SRC
+
+* Global modes and general editor tweaks
+
+#+BEGIN_SRC emacs-lisp
+  (put 'downcase-region 'disabled nil)
+  (put 'upcase-region 'disabled nil)
+  (put 'narrow-to-region 'disabled nil)
+  (put 'dired-find-alternate-file 'disabled nil)
+
+  (defalias 'yes-or-no-p 'y-or-n-p)
+
+  (setq locale-coding-system 'utf-8)
+  (set-terminal-coding-system 'utf-8)
+  (set-keyboard-coding-system 'utf-8)
+  (set-selection-coding-system 'utf-8)
+  (prefer-coding-system 'utf-8)
+
+  (global-visual-line-mode)
+  (diminish 'visual-line-mode)
+
+  (global-display-line-numbers-mode)
+  (diminish 'display-line-numbers-mode)
+
+  (show-paren-mode t)
+#+END_SRC
+
+* Configure backups
+
+Emacs is pretty good about backing up files, in case something
+catastrophic happens. However, you end up with backup files scattered
+all over the filesystem. Instead, we'll create a ~backups~ directory
+to hold onto all of the backup files.
+
+#+BEGIN_SRC emacs-lisp
+  (setq backup-directory-alist '(("." . "~/.emacs.d/backups")))
+  (setq auto-save-file-name-transforms '((".*" "~/.emacs.d/auto-save-list/" t)))
+#+END_SRC
+
+* Set up fonts
+
+For now, we just use whatever font is set by the terminal application
+or OS.
+
+* Theme
+* Navigation and movement
+** File structure navigation and buffer management
+
+Beyond Emacs' default tools for browsing your file system, there are a
+handful of relatively popular 3rd-party packages designed to make
+navigating through your directories and files easier. My favorite one
+is Helm. This basic configuration makes sure Helm is installed and
+active, and it remaps some of the default keystrokes to use Helm
+instead.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package helm
+    :ensure t
+    :diminish helm-mode
+    :bind (("C-c h" . helm-command-prefix)
+	   ("C-x b" . helm-mini)
+	   ("C-`" . helm-resume)
+	   ("M-x" . helm-M-x)
+	   ("C-x C-f" . helm-find-files)
+	   ("C-x C-r" . helm-recentf))
+    :init
+    (require 'helm-config)
+    :config
+    (setq helm-locate-command "mdfind -interpret -name %s $s"
+	  helm-ff-newfile-prompt-p nil
+	  helm-M-x-fuzzy-match t)
+    (helm-mode))
+  (use-package helm-projectile
+    :ensure t
+    :after helm-mode
+    :commands helm-projectile
+    :bind("C-c p h" . helm-projectile))
+  (use-package helm-ag
+    :ensure t
+    :after helm-mode)
+  (use-package helm-swoop
+    :ensure t
+    :after helm-mode
+    :bind ("H-w" . helm-swoop))
+#+END_SRC
+
+* Language-specific configuration
+** TeX (and variants thereof)
+
+I do most of my technical writing in $\LaTeX$ when possible. ~auctex~
+is the Emacs package that provides most of the convenience
+functionality we need for working in TeX.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package tex
+    :defer t
+    :ensure auctex
+    :mode ("\\.tex\\'" . latex-mode)
+    :init
+    (add-hook 'LaTeX-mode-hook
+	      (lambda ()
+		(prettify-symbols-mode)
+		(LaTeX-math-mode)
+		(turn-on-reftex)
+		(reftex-isearch-minor-mode)
+		(turn-off-auto-fill)))
+    (add-hook 'LaTeX-mode-hook 'auto-fill-mode)
+    (add-hook 'LaTeX-mode-hook 'visual-line-mode)
+    :config
+    (setq TeX-save-query nil)
+    (setq TeX-auto-save t)
+    (setq-default TeX-master nil)
+    (setq reftex-plug-into-AUCTeX t)
+    (setq TeX-PDF-mode t)
+    (setq TeX-electric-escape t)
+    (setq global-font-lock-mode t)
+    (font-lock-add-keywords 'latex-mode
+			    (list(list "\\(«\\(.+?\\|\n\\)\\)\\(+?\\)\\(»\\)"
+				       '(1 'font-latex-string-face t)
+				       '(2 'font-latex-string-face t)
+				       '(3 'font-latex-string-face t))))
+    (setq TeX-source-correlate-method 'synctex)
+    (setq TeX-source-correlate-start-server t)
+    (setq TeX-source-correlate-mode t)
+    (add-hook 'TeX-after-TeX-LaTeX-command-finished-hook
+	      'TeX-revert-document-buffer)
+    ;; use sumatra to view pdf
+    ;; http://stackoverflow.com/questions/14448606/sync-emacs-auctex-with-sumatra-pdf
+    ;; -set-color-range #fdf4c1 #282828
+    ;;TODO
+    )
+#+END_SRC
+
+~magic-latex-buffer~ adds nice visual effects to Emacs .tex buffers,
+like typeset math symbols and inline image previews.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package magic-latex-buffer
+    :ensure t
+    :defer t
+    :config
+    (add-hook 'latex-mode-hook 'magic-latex-buffer))
+#+END_SRC
+
+Depending on the computing environment, ~pdf-tools~ can provide some
+support for viewing compiled PDFs right within a separate Emacs
+buffer. Getting it installed requires a bit of extra work outside of
+Emacs... actually setting this up is on my to-do list for now!
+
+** Org-mode
+Org mode is mostly ready-to-go out of the box, but it is missing a few
+handy features that either need to be enabled or programmed manually
+in e-lisp.
+
++One of my most common actions is to create a source code
+block. Surprisingly, there isn't built-in functionality to insert a
+new source block. This function asks the user for a language, creates
+a new source code block for that language, and drops the user into a
+new buffer via ~org-edit-src-code~:+
+Apparently, ~org-mode~ DOES offer this functionality, via [[https://orgmode.org/manual/Structure-Templates.html][structure
+templates]], but I'm going to keep this function around just because it
+was the first elisp function I wrote by hand ;).
+
+#+BEGIN_SRC emacs-lisp
+  (defun jdr/org-insert-new-source-block ()
+    "Create a new source code block in a specified language."
+    (interactive)
+    (insert (concat
+	     "#+BEGIN_SRC "
+	     (read-string "Language of the new source block: ")
+	     "\n\n"
+	     "#+END_SRC"))
+    (forward-line -1)
+    (org-edit-special))
+#+END_SRC
+
+I like to use ~auto-fill-mode~ any time I'm working in an org
+document.
+
+TODO: Figure out how to make this play nicely! For some reason, it
+completely breaks auto-fill-mode...
+
+#+BEGIN_SRC emacs-lisp
+  (use-package org
+    :defer t
+    :ensure org-plus-contrib
+    :pin org
+    :init
+    (add-hook 'org-mode-hook 'turn-on-auto-fill))
+#+END_SRC
+
+* Project management
+* License
+
+#+NAME: License
+#+BEGIN_EXAMPLE
+Copyright 2021 by Joseph D. Romano
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+#+END_EXAMPLE
