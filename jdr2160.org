@@ -124,6 +124,14 @@ tweaks:
   (show-paren-mode t)
 #+END_SRC
 
+If on Windows, we want to remap the menu key ~<apps>~ to be the same
+as Linux's menu key ~<menu>~.
+
+#+begin_src emacs-lisp
+  (when (string-equal system-type "windows-nt")
+    (global-set-key (kbd "<apps>") 'execute-extended-command))
+#+end_src
+
 ~smartparens~ and ~paredit~ make working with parentheses more
 convenient and visually appealing.
 
@@ -307,6 +315,7 @@ buffer. Getting it installed requires a bit of extra work outside of
 Emacs... actually setting this up is on my to-do list for now!
 
 ** Org-mode
+
 Org mode is mostly ready-to-go out of the box, but it is missing a few
 handy features that either need to be enabled or programmed manually
 in e-lisp.
@@ -315,10 +324,11 @@ in e-lisp.
 block. Surprisingly, there isn't built-in functionality to insert a
 new source block. This function asks the user for a language, creates
 a new source code block for that language, and drops the user into a
-new buffer via ~org-edit-src-code~:+
-Apparently, ~org-mode~ DOES offer this functionality, via [[https://orgmode.org/manual/Structure-Templates.html][structure
-templates]], but I'm going to keep this function around just because it
-was the first elisp function I wrote by hand ;).
+new buffer via ~org-edit-src-code~:+ Apparently, ~org-mode~ DOES offer
+this functionality, via
+[[https://orgmode.org/manual/Structure-Templates.html][structure
+templates]], but I'm going to keep this function around just because
+it was the first elisp function I wrote by hand ;).
 
 #+BEGIN_SRC emacs-lisp
   (defun jdr/org-insert-new-source-block ()
@@ -336,17 +346,148 @@ was the first elisp function I wrote by hand ;).
 I like to use ~auto-fill-mode~ any time I'm working in an org
 document.
 
-TODO: Figure out how to make this play nicely! For some reason, it
-completely breaks auto-fill-mode...
-
 #+BEGIN_SRC emacs-lisp
   (use-package org
     :defer t
     :ensure org-plus-contrib
     :pin org
+    :bind (("C-c r" . org-capture)
+	   ("C-c a" . org-agenda)
+	   ("C-c l" . org-store-link)
+	   ("C-c L" . org-insert-link-global)
+	   ("C-c O" . org-open-at-point-global)
+	   ("<f9> <f9>" . org-agenda-list)
+	   ("<f9> <f8>" . (lambda () (interactive) (org-capture nil "r")))
+	   :map org-mode-map
+	   ("C-M-w" . append-next-kill)
+	   ("C-TAB" . org-cycle)
+	   ("C-c v" . org-show-todo-tree)
+	   ("C-c C-r" . org-refile)
+	   ("C-c R" . org-reveal)
+	   ("C-c k" . org-cut-subtree)
+	   ("C-c b" . myu/org-back-to-heading)
+	   ("C-c p" . org-display-outline-path))
     :init
-    (add-hook 'org-mode-hook 'turn-on-auto-fill))
+    (add-hook 'org-mode-hook 'turn-on-auto-fill)
+    (setq org-adapt-indentation nil)
+    :config
+    (setq org-use-speed-commands t)
+    (setq org-yank-adjusted-subtrees t))
 #+END_SRC
+
+The rest of my ~org-mode~ configuration draws heavily on Sacha Chua's
+Emacs configuration (which you can find [[https://pages.sachachua.com/.emacs.d/Sacha.html][here]]).
+
+*** Org Modules
+
+#+BEGIN_SRC emacs-lisp
+  (setq org-modules '(org-bbdb
+		      org-gnus
+		      org-info
+		      org-man
+		      org-eval
+		      org-toc
+		      org-screen
+		      org-panel))
+  (eval-after-load 'org
+    '(org-load-modules-maybe t))
+#+END_SRC
+
+*** ~org-agenda~
+
+~org-agenda~ is technically a separate package, and needs to be
+configured as such. Notice that since it isn't installed separately,
+we need to set ~:ensure nil~.
+
+#+begin_src emacs-lisp
+  (use-package org-agenda
+    :ensure nil
+    :bind (:map org-agenda-mode-map
+		("i" . org-agenda-clock-in)
+		("Y" . org-agenda-todo-yesterday))
+    :init
+    (setq org-agenda-span 2)
+    (setq org-agenda-tags-column -100)
+    (setq org-agenda-sticky nil)
+    (setq org-agenda-inhibit-startup t)
+    (setq org-agenda-use-tag-inheritance t)
+    (setq org-agenda-show-log t)
+    (setq org-agenda-skip-scheduled-if-done t)
+    (setq org-agenda-skip-deadline-if-done t)
+    (setq org-agenda-skip-deadline-prewarning-if-scheduled 'pre-scheduled)
+    (setq org-agenda-time-grid
+	  '((daily today require-timed)
+	    (800 1000 1200 1400 1600 1800 2000)
+	    "......" "----------------"))
+    (setq org-columns-show-default-format "%14SCHEDULED %Effort{:} %1PRIORITY %TODO %50ITEM %TAGS")
+    )
+#+end_src
+
+*** Speed keys
+
+Org speed keys are quick, single character keystrokes that can be
+performed when your point is at the beginning of an Org header
+line. We turn this feature on, add some new speed keys, and remap some
+of the defaults.
+
+#+begin_src emacs-lisp
+  (with-eval-after-load 'org
+    (add-to-list 'org-speed-commands-user '("x" org-todo "DONE"))
+    (add-to-list 'org-speed-commands-user '("y" org-todo-yesterday "DONE"))
+    (add-to-list 'org-speed-commands-user '("s" call-interactively 'org-schedule)) ;; originally `narrow to subtree'
+    (add-to-list 'org-speed-commands-user '("$" call-interactively 'org-archive-subtree)))
+#+end_src
+
+*** Org-mode navigation tweaks
+
+This function is copied from Sacha Chua's config. It just makes
+~(org-back-to-heading)~ interactive. I already bound it to a key in
+the ~use-package~ block for Org (above).
+
+#+begin_src emacs-lisp
+  (defun my/org-back-to-heading ()
+    (interactive)
+    (org-back-to-heading))
+#+end_src
+
+*** Sync ~org-mode~ files
+
+I keep my org files in Dropbox, which has a different location on my
+Macbook vs. on my Windows 10 desktop. You should modify these
+locations as needed to fit your setup.
+
+#+begin_src emacs-lisp
+  (cond
+   ((string-equal system-type "windows-nt")
+    (progn
+      (setq org-directory "D:/Dropbox/org")
+      (setq org-default-notes-file "D:/Dropbox/org/notes.org")))
+   ((string-equal system-type "darwin")
+    (progn
+      (setq org-directory "~/Dropbox/org")
+      (setq org-default-notes-file "~/Dropbox/org/notes.org"))))
+#+end_src
+
+*** Other miscellaneous Org config
+
+These don't really fit elsewhere, so I'm just putting them here in no
+particular order.
+
+This command (adapted from Sacha Chua) adds a heading at the same
+level scheduled for whatever date is tomorrow:
+
+#+begin_src emacs-lisp
+  (defun my/org-insert-heading-for-tomorrow ()
+    "Insert a same-level heading for tomorrow."
+    (interactive)
+    (let ((new-date
+	   (seconds-to-time
+	    (+ 86400.0
+	       (float-time
+		(org-read-date nil 'to-time (elt (org-heading-components) 4)))))))
+      (org-insert-heading-after-current)
+      (insert (format-time-string "%Y-%m-%d\n\n" new-date))))
+#+end_src
 
 * Project management
 * License
