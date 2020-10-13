@@ -128,3 +128,7 @@ elpa/
 url/
 
 jdr2160.el
+
+.lsp-session*
+
+transient/

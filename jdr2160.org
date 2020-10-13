@@ -163,6 +163,42 @@ convenient and visually appealing.
     (sp-local-pair 'emacs-lisp-mode "`" nil :when '(sp-in-string-p)))
 #+END_SRC
 
+** Configure ~PATH~ and ~exec-path~
+
+Emacs generally has issues duplicating the $PATH environment variable
+used by your shell. We need to add some locations that Emacs doesn't
+pick up on.
+
+#+begin_src emacs-lisp
+  (if (eq system-type 'darwin)
+      (progn
+	(add-to-list 'exec-path "/Users/jdr2160/anaconda3/bin")))
+#+end_src
+
+** IDE-like editor features
+
+*** LSP Mode
+
+~lsp-mode~ is an emacs client for various LSP servers. We call ~lsp~
+in language-specific config sections later on.
+
+#+begin_src emacs-lisp
+  (use-package lsp-mode
+    :ensure flycheck
+    :hook (c-mode
+	   c++-mode
+	   python-mode)
+    :commands
+    (lsp lsp-deferred)
+    :init
+    (setq lsp-keymap-prefix "s-l"))
+  (use-package lsp-ui
+    :ensure t
+    :commands lsp-ui-mode)
+  (use-package helm-lsp
+    :commands helm-lsp-workspace-symbol)
+#+end_src
+
 * Configure backups
 
 Emacs is pretty good about backing up files, in case something
@@ -489,7 +525,52 @@ level scheduled for whatever date is tomorrow:
       (insert (format-time-string "%Y-%m-%d\n\n" new-date))))
 #+end_src
 
+** Python
+
+One of the main goals here is to make it as easy to write Python
+applications in Emacs as it is to write them in VS Code.
+
+#+begin_src emacs-lisp
+  (use-package python-mode
+    :ensure t
+    :defer t
+    :after lsp-mode
+    :mode "\\.py\\'"
+    :interpreter "python")
+#+end_src
+
 * Project management
+
+** Git
+
+~magit~ is the gold-standard Emacs mode for interacting with Git
+repositories.
+
+#+begin_src emacs-lisp
+  (use-package magit
+    :ensure t
+    :bind (("C-x g" . magit-status)
+	   ("C-x G" . magit-status-with-prefix))
+    :bind (:map magit-mode-map
+		("U" . magit-unstage-all)
+		("M-h") ("M-s") ("M-m") ("M-w"))
+    :hook (magit-mode . hl-line-mode)
+    :config
+    (use-package magit-commit
+      :config
+      (use-package git-commit))
+    (use-package magit-files
+      :config
+      (global-magit-file-mode)))
+#+end_src
+
+Look into Transient, which apparently has superceded magit-popup.
+
+#+begin_src emacs-lisp
+  (use-package magit-popup
+    :defer t)
+#+end_src
+
 * License
 
 #+NAME: License
